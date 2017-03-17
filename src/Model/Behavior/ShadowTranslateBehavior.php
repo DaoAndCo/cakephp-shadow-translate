@@ -95,7 +95,7 @@ class ShadowTranslateBehavior extends TranslateBehavior
             $joinType = $config['onlyTranslated'] ? 'INNER' : 'LEFT';
         }
 
-        $this->_table->hasOne($config['hasOneAlias'], [
+        $translationTable = $this->_table->hasOne($config['hasOneAlias'], [
             'foreignKey' => ['id'],
             'joinType' => $joinType,
             'propertyName' => 'translation',
@@ -104,7 +104,9 @@ class ShadowTranslateBehavior extends TranslateBehavior
                 $config['hasOneAlias'] . '.locale' => $locale,
             ],
         ]);
-
+        foreach ($this->_table->schema()->typeMap() as $field => $fieldType) {
+            $translationTable->schema()->columnType($field,$fieldType);
+        }
         $fieldsAdded = $this->_addFieldsToQuery($query, $config);
         $orderByTranslatedField = $this->_iterateClause($query, 'order', $config);
         $filteredByTranslatedField = $this->_traverseClause($query, 'where', $config);
@@ -114,7 +116,6 @@ class ShadowTranslateBehavior extends TranslateBehavior
         }
 
         $query->contain([$config['hasOneAlias']]);
-
         $query->formatResults(function ($results) use ($locale) {
             return $this->_rowMapper($results, $locale);
         }, $query::PREPEND);
@@ -275,7 +276,12 @@ class ShadowTranslateBehavior extends TranslateBehavior
         if ($locale === $this->config('defaultLocale')) {
             return;
         }
+
         $values = $entity->extract($this->_translationFields(), true);
+        foreach ($values as $field => $fieldType) {
+            $originalTypemap = $this->_table->schema()->typeMap()[$field];
+            $this->_translationTable->schema()->columnType($field,$originalTypemap);
+        }
         $fields = array_keys($values);
 
         if (empty($fields)) {
@@ -366,7 +372,6 @@ class ShadowTranslateBehavior extends TranslateBehavior
             if ($hydrated) {
                 $row->clean();
             }
-
             return $row;
         });
     }
